@@ -3,12 +3,14 @@ ifeq ($(OS),Windows_NT)
 	PLATLNOPTS =
 else
 	EXT =
-	PLATLNOPTS = -lrt
+	PLATLNOPTS = 
 endif
-
+LDFLAGS+= -lrt -pthread -lm 
+CPPFLAGS+= -g -ggdb -O3 -Ofast -march=native -pthread
+CXXFLAGS+= -std=gnu++11
 default: bench$(EXT)
 run: bench$(EXT)
 	./bench$(EXT)
 
-bench.exe: bench.cpp microbench/microbench.h microbench/systemtime.h microbench/systemtime.cpp
-	g++ -std=c++11 -DNDEBUG -O3 bench.cpp microbench/systemtime.cpp -o bench $(PLATLNOPTS)
+bench: bench.cpp microbench/microbench.h microbench/systemtime.h microbench/systemtime.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -DNDEBUG bench.cpp microbench/systemtime.cpp -o bench $(PLATLNOPTS) $(LDFLAGS)

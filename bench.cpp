@@ -37,25 +37,110 @@ int main(int argc, char** argv)
 	long long z64 = rand();
 	if (sizeof(x64) != 8) exit(2);
 	
+    std::atomic<long double> x128(0);
+    long double  y128 = rand();
+    long double z128 = rand();
+    volatile int       r32;
+    volatile long long r64;
+    volatile long double r128;
 	printf("32-bit CAS takes %.4fns on average\n",
 		moodycamel::microbench(
 			[&]() { x32.compare_exchange_strong(y32, z32, std::memory_order_acq_rel, std::memory_order_acquire); },
-			1000000, /* iterations per test run */
-			50 /* number of test runs */
+			10000, /* iterations per test run */
+			5000 /* number of test runs */
 		) * 1000 * 1000    // ms -> ns
 	);
 	
 	printf("64-bit CAS takes %.4fns on average\n",
 		moodycamel::microbench(
 			[&]() { x64.compare_exchange_strong(y64, z64, std::memory_order_acq_rel, std::memory_order_acquire); },
+			10000,
+			5000
+		) * 1000 * 1000
+	);
+	
+    printf("128-bit CAS takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() { x128.compare_exchange_strong(y128, z128, std::memory_order_acq_rel, std::memory_order_acquire); },
+			10000,
+			5000
+		) * 1000 * 1000
+	);
+
+	printf("32-bit weak CAS takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() { x32.compare_exchange_weak(y32, z32, std::memory_order_acq_rel, std::memory_order_acquire); },
+			10000, /* iterations per test run */
+			5000 /* number of test runs */
+		) * 1000 * 1000    // ms -> ns
+	);
+	
+	printf("64-bit weak CAS takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() { x64.compare_exchange_weak(y64, z64, std::memory_order_acq_rel, std::memory_order_acquire); },
+			10000,
+			5000
+		) * 1000 * 1000
+	);
+	
+    printf("128-bit weak CAS takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() { x128.compare_exchange_weak(y128, z128, std::memory_order_acq_rel, std::memory_order_acquire); },
+			10000,
+			5000
+		) * 1000 * 1000
+	);
+
+    printf("32-bit lock & takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() {  x32.fetch_and(y32, std::memory_order_relaxed); },
 			1000000,
 			50
 		) * 1000 * 1000
 	);
 	
+	printf("64-bit lock & takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() {  x64.fetch_and(y64, std::memory_order_relaxed); },
+			1000000,
+			50
+		) * 1000 * 1000
+	);
+	printf("32-bit FA& takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() { r32 = x32.fetch_and(y32, std::memory_order_relaxed); },
+			1000000,
+			50
+		) * 1000 * 1000
+	);
+	
+	printf("64-bit FA& takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() { r64 = x64.fetch_and(y64, std::memory_order_relaxed); },
+			1000000,
+			50
+		) * 1000 * 1000
+	);
+
+
+	printf("32-bit lock & takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() { x32.fetch_and(y32, std::memory_order_relaxed); },
+			1000000,
+			50
+		) * 1000 * 1000
+	);
+	
+	printf("64-bit lock & takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() { x64.fetch_and(y64, std::memory_order_relaxed); },
+			1000000,
+			50
+		) * 1000 * 1000
+	);
 	printf("32-bit FAA takes %.4fns on average\n",
 		moodycamel::microbench(
-			[&]() { x32.fetch_add(y32, std::memory_order_acq_rel); },
+			[&]() { r32 = x32.fetch_add(y32, std::memory_order_relaxed); },
 			1000000,
 			50
 		) * 1000 * 1000
@@ -63,12 +148,33 @@ int main(int argc, char** argv)
 	
 	printf("64-bit FAA takes %.4fns on average\n",
 		moodycamel::microbench(
-			[&]() { x64.fetch_add(y64, std::memory_order_acq_rel); },
+			[&]() { r64 = x64.fetch_add(y64, std::memory_order_relaxed); },
+			1000000,
+			50
+		) * 1000 * 1000
+	);
+	printf("32-bit xchg takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() { r32 = x32.exchange(y32, std::memory_order_relaxed); },
 			1000000,
 			50
 		) * 1000 * 1000
 	);
 	
+	printf("64-bit xchg takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() { r64 = x64.exchange(y64, std::memory_order_relaxed); },
+			1000000,
+			50
+		) * 1000 * 1000
+	);
+	printf("128-bit xchg takes %.4fns on average\n",
+		moodycamel::microbench(
+			[&]() { r128 = x128.exchange(y128, std::memory_order_relaxed); },
+			1000000,
+			50
+		) * 1000 * 1000
+	);
 	printf("std::this_thread::get_id() takes %.4fns on average\n",
 		moodycamel::microbench(
 			[&]() { std::this_thread::get_id(); },
