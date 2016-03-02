@@ -1,11 +1,19 @@
 #include "microbench/microbench.h"
+#include "function.h"
 
+#include <functional>
+#include <memory>
+#include <utility>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <atomic>
 #include <thread>
 #include <cstdint>
-
+extern "C" {
+#include <dlfcn.h>
+#include <sys/auxv.h>
+};
 #ifdef __APPLE__
 #include <pthread.h>
 #endif
@@ -18,15 +26,81 @@
 #else
 #define THREAD_LOCAL thread_local
 #endif
+#include <chrono>
 
+extern "C" {
+    extern "C" int __vdso_clock_gettime(int,struct timespec*);
+};
+void *vdso;
+struct vdso_load {
+    vdso_load(const char *name)
+    {
+        vdso = reinterpret_cast<void*>(reinterpret_cast<uintptr_t> (getauxval(AT_SYSINFO_EHDR)));
+    }
+    inline int64_t gettime() const
+    {
+        timespec ts;
+        __vdso_clock_gettime(CLOCK_REALTIME,&ts);
+        return (1000000ll*ts.tv_sec + ts.tv_nsec);       
+    }
+};
+vdso_load vdso_clock_gettime{"__vdso_clock_gettime"};
+
+inline int64_t gettime_vdso(void)
+{
+    return vdso_clock_gettime.gettime();
+}
+inline int64_t gettime_ns(void)
+{
+    auto ts = timespec{};
+    clock_gettime(CLOCK_REALTIME,&ts);
+    return (1000000ll*ts.tv_sec + ts.tv_nsec);
+}
+inline int64_t gettime_tsc(void)
+{
+    return __rdtsc();
+}
+inline int64_t gettime_chrono(void)
+{
+    auto now = std::chrono::high_resolution_clock::now();
+    auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            now.time_since_epoch()).count();
+    return nanos;
+}
 uintptr_t ghetto_thread_id()
 {
 	static THREAD_LOCAL int x;
 	return reinterpret_cast<uintptr_t>(&x);
 }
+static int cfunc(int a)
+{
+    return a * 5;
+}
+static int mfunc(int a)
+{
+    static auto i = 0ll;
+    i += a;
+    return i;
+}
+struct sfunc {
+    int i = 5;
+    int j = 7;
+    sfunc(int _i = 5, int _j = 7)
+        :i(_i),j(_j)
+    {}
+    sfunc(const sfunc&)=default;
+    sfunc &operator=(const sfunc&) = default;
+    virtual int operator() (int a)
+    {
+        i += j * a;
+        return i;
+    }
 
+};
+static int (*fptr)(int a);
 int main(int argc, char** argv)
 {
+    fptr = cfunc;
 	std::atomic<int> x32(0);
 	int y32 = rand();
 	int z32 = rand();
@@ -40,180 +114,154 @@ int main(int argc, char** argv)
     std::atomic<long double> x128(0);
     long double  y128 = rand();
     long double z128 = rand();
-    volatile int       r32;
-    volatile long long r64;
-    volatile long double r128;
-	printf("32-bit CAS takes %.4fns on average\n",
+    volatile int       r32 = 0;
+    volatile long long r64 = 0;
+    volatile long double r128 = 0;
+    auto fn = std::function<int(int)>{};
+    auto i  = 5;
+    auto j  = 7;
+    auto lambda = [=](int a)mutable{ i+=j* a;return i; };r32=lambda(r32);
+	printf(" std::function<int(int)> construction takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { x32.compare_exchange_strong(y32, z32, std::memory_order_acq_rel, std::memory_order_acquire); },
-			10000, /* iterations per test run */
-			5000 /* number of test runs */
-		) * 1000 * 1000    // ms -> ns
-	);
-	
-	printf("64-bit CAS takes %.4fns on average\n",
-		moodycamel::microbench(
-			[&]() { x64.compare_exchange_strong(y64, z64, std::memory_order_acq_rel, std::memory_order_acquire); },
-			10000,
-			5000
-		) * 1000 * 1000
-	);
-	
-    printf("128-bit CAS takes %.4fns on average\n",
-		moodycamel::microbench(
-			[&]() { x128.compare_exchange_strong(y128, z128, std::memory_order_acq_rel, std::memory_order_acquire); },
-			10000,
-			5000
-		) * 1000 * 1000
+			[&]() { fn = [=](int a)mutable{ i+=j * a;return i; };r32=fn(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
 
-	printf("32-bit weak CAS takes %.4fns on average\n",
+    auto cfn = fn;
+	printf(" std::function<int(int)> copy takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { x32.compare_exchange_weak(y32, z32, std::memory_order_acq_rel, std::memory_order_acquire); },
-			10000, /* iterations per test run */
-			5000 /* number of test runs */
-		) * 1000 * 1000    // ms -> ns
+			[&]() { cfn = fn;r32=cfn(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-	
-	printf("64-bit weak CAS takes %.4fns on average\n",
+    auto ffn = func::function<int(int)>{};
+	printf(" ffn::function<int(int)> construction takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { x64.compare_exchange_weak(y64, z64, std::memory_order_acq_rel, std::memory_order_acquire); },
-			10000,
-			5000
-		) * 1000 * 1000
-	);
-	
-    printf("128-bit weak CAS takes %.4fns on average\n",
-		moodycamel::microbench(
-			[&]() { x128.compare_exchange_weak(y128, z128, std::memory_order_acq_rel, std::memory_order_acquire); },
-			10000,
-			5000
-		) * 1000 * 1000
+			[&]() { ffn = [=](int a)mutable{ i+=j * a;return i; };r32=ffn(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
 
-    printf("32-bit lock & takes %.4fns on average\n",
+    auto cffn = ffn;
+	printf(" func::function<int(int)> copy takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() {  x32.fetch_and(y32, std::memory_order_relaxed); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { cffn = ffn;r32=cffn(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-	
-	printf("64-bit lock & takes %.4fns on average\n",
+	printf(" functor construction takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() {  x64.fetch_and(y64, std::memory_order_relaxed); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { auto sfn = sfunc{r32};r32=sfn(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-	printf("32-bit FA& takes %.4fns on average\n",
+    auto sfn = sfunc{};
+	printf(" functor copy takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r32 = x32.fetch_and(y32, std::memory_order_relaxed); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { auto _sfn = sfn;r32 =_sfn(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-	
-	printf("64-bit FA& takes %.4fns on average\n",
+	printf(" lambda construction takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r64 = x64.fetch_and(y64, std::memory_order_relaxed); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { auto _lambda = [=](int a)mutable{ i+=j*a;return i; };r32=_lambda(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
 
-
-	printf("32-bit lock & takes %.4fns on average\n",
+	printf(" lambda copy takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { x32.fetch_and(y32, std::memory_order_relaxed); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { auto _lambda = lambda;r32=_lambda(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-	
-	printf("64-bit lock & takes %.4fns on average\n",
+	printf(" std::function<int(int)> invocation takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { x64.fetch_and(y64, std::memory_order_relaxed); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { r32 = fn(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-	printf("32-bit FAA takes %.4fns on average\n",
+	printf(" func::function<int(int)> invocation takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r32 = x32.fetch_add(y32, std::memory_order_relaxed); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { r32 = ffn(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-	
-	printf("64-bit FAA takes %.4fns on average\n",
+	printf(" functor invocation takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r64 = x64.fetch_add(y64, std::memory_order_relaxed); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { r32 = sfn(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-	printf("32-bit xchg takes %.4fns on average\n",
+	printf(" lambda invocation takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r32 = x32.exchange(y32, std::memory_order_relaxed); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { r32 = lambda(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-	
-	printf("64-bit xchg takes %.4fns on average\n",
+	printf(" func invocation takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r64 = x64.exchange(y64, std::memory_order_relaxed); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { r32 = cfunc(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-	printf("128-bit xchg takes %.4fns on average\n",
+	printf(" func ptr invocation takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r128 = x128.exchange(y128, std::memory_order_relaxed); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { r32 = fptr(r32);},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-	printf("std::this_thread::get_id() takes %.4fns on average\n",
+	printf(" mutable func invocation takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { std::this_thread::get_id(); },
-			10000,
-			50
-		) * 1000 * 1000
+			[&]() { r32 = mfunc(r32);},
+			100, /* iterations per test run */
+			1000000 /* number of test runs */
+		)   // ms -> ns
 	);
-	
-#ifdef _WIN32
-	printf("GetCurrentThreadId() takes %.4fns on average\n",
+    fptr = mfunc;
+	printf(" mutable func ptr invocation takes %F clocks on average\n",
 		moodycamel::microbench(
-			[&]() { GetCurrentThreadId(); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { r32 = fptr(r32);},
+			100, /* iterations per test run */
+			1000000 /* number of test runs */
+		)   // ms -> ns
 	);
-#endif
-	
-#if !defined(__APPLE__) || (!defined(TARGET_IPHONE_SIMULATOR) && !defined(TARGET_OS_IPHONE))
-	volatile uintptr_t ghettoId = 0;
-	printf("ghetto_thread_id() takes %.4fns on average\n",
+	printf(" gettime_ns() takes %F clocks on average\n",
 		moodycamel::microbench(
-		[&]() { ghettoId += ghetto_thread_id(); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { r64 = gettime_ns();},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-#endif
-
-#ifdef __APPLE__
-	volatile mach_port_t machId = 0;
-	printf("pthread_mach_thread_np(pthread_self()) takes %.4fns on average\n",
+	printf(" gettime_tsc() takes %F clocks on average\n",
 		moodycamel::microbench(
-		[&]() { machId = pthread_mach_thread_np(pthread_self()); },
-			1000000,
-			50
-		) * 1000 * 1000
+			[&]() { r64 = gettime_tsc();},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
 	);
-#endif
-	
+	printf(" gettime_chrono() takes %F clocks on average\n",
+		moodycamel::microbench(
+			[&]() { r64 = gettime_chrono();},
+			100, /* iterations per test run */
+			100000 /* number of test runs */
+		)   // ms -> ns
+	);
+    printf("sizeof(lambda) == %zu, sizeof(fn) == %zu, sizeof(fptr) == %zu, sizeof(func) == %zu, sizeof(mfunc) == %zu, sizeof(cfn) == %zu\n",sizeof(lambda), sizeof(fn),sizeof(fptr),sizeof(&cfunc),sizeof(&mfunc), sizeof(cfn));
 	return 0;
 }
