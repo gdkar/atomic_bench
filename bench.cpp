@@ -121,76 +121,76 @@ int main(int argc, char** argv)
     auto i  = 5;
     auto j  = 7;
     auto lambda = [=](int a)mutable{ i+=j* a;return i; };r32=lambda(r32);
-	printf(" std::function<int(int)> construction takes %F clocks on average\n",
-		moodycamel::microbench(
+    std::cout << "std::function<int(int)> construction" << std::endl << 
+		moodycamel::microbench_stats(
 			[&]() { fn = [=](int a)mutable{ i+=j * a;return i; };r32=fn(r32);},
 			100, /* iterations per test run */
 			100000 /* number of test runs */
-		)   // ms -> ns
-	);
+		) << std::endl << std::endl;   // ms -> ns
 
     auto cfn = fn;
-	printf(" std::function<int(int)> copy takes %F clocks on average\n",
-		moodycamel::microbench(
+    std::cout << "std::function<int(int)> copy takes" << std::endl << 
+		moodycamel::microbench_stats(
 			[&]() { cfn = fn;r32=cfn(r32);},
 			100, /* iterations per test run */
 			100000 /* number of test runs */
 		)   // ms -> ns
-	);
+	<<std::endl<<std::endl;
     auto ffn = func::function<int(int)>{};
-	printf(" ffn::function<int(int)> construction takes %F clocks on average\n",
-		moodycamel::microbench(
+    std::cout << "ffn::function<int(int)> construction: " << std::endl << 
+		moodycamel::microbench_stats(
 			[&]() { ffn = [=](int a)mutable{ i+=j * a;return i; };r32=ffn(r32);},
 			100, /* iterations per test run */
 			100000 /* number of test runs */
 		)   // ms -> ns
-	);
+	<<std::endl<<std::endl;
 
     auto cffn = ffn;
-	printf(" func::function<int(int)> copy takes %F clocks on average\n",
-		moodycamel::microbench(
+    std::cout << "func::function<int(int)> copy: " <<  std::endl << 
+		moodycamel::microbench_stats(
 			[&]() { cffn = ffn;r32=cffn(r32);},
 			100, /* iterations per test run */
 			100000 /* number of test runs */
 		)   // ms -> ns
-	);
-	printf(" functor construction takes %F clocks on average\n",
-		moodycamel::microbench(
+	<<std::endl<<std::endl;
+    std::cout << "functor construction\n" << std::endl << 
+		moodycamel::microbench_stats(
 			[&]() { auto sfn = sfunc{r32};r32=sfn(r32);},
 			100, /* iterations per test run */
 			100000 /* number of test runs */
 		)   // ms -> ns
-	);
+        <<std::endl<<std::endl
+	;
     auto sfn = sfunc{};
-	printf(" functor copy takes %F clocks on average\n",
-		moodycamel::microbench(
+    std::cout << "functor copy \n" << std::endl <<
+		moodycamel::microbench_stats(
 			[&]() { auto _sfn = sfn;r32 =_sfn(r32);},
 			100, /* iterations per test run */
 			100000 /* number of test runs */
 		)   // ms -> ns
-	);
-	printf(" lambda construction takes %F clocks on average\n",
-		moodycamel::microbench(
+	<<std::endl<<std::endl;
+    std::cout << "lambda construction\n" <<
+		moodycamel::microbench_stats(
 			[&]() { auto _lambda = [=](int a)mutable{ i+=j*a;return i; };r32=_lambda(r32);},
 			100, /* iterations per test run */
 			100000 /* number of test runs */
 		)   // ms -> ns
-	);
+	<<std::endl<<std::endl;
 
-	printf(" lambda copy takes %F clocks on average\n",
-		moodycamel::microbench(
+    std::cout<<"lambda copy:" << std::endl<<
+		moodycamel::microbench_stats(
 			[&]() { auto _lambda = lambda;r32=_lambda(r32);},
 			100, /* iterations per test run */
 			100000 /* number of test runs */
 		)   // ms -> ns
-	);
-	printf(" std::function<int(int)> invocation takes %F clocks on average\n",
-		moodycamel::microbench(
+	<<std::endl<<std::endl;
+    std::cout<<"std::function<int(int)> invocation takes %F clocks on average\n"<<std::endl<<
+		moodycamel::microbench_stats(
 			[&]() { r32 = fn(r32);},
 			100, /* iterations per test run */
 			100000 /* number of test runs */
 		)   // ms -> ns
-	);
+	<<std::endl<<std::endl;
 	printf(" func::function<int(int)> invocation takes %F clocks on average\n",
 		moodycamel::microbench(
 			[&]() { r32 = ffn(r32);},

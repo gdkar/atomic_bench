@@ -13,5 +13,8 @@ default: bench$(EXT)
 run: bench$(EXT)
 	./bench$(EXT)
 
-bench: bench.cpp microbench/microbench.h microbench/systemtime.h microbench/systemtime.cpp function.h
+bench: bench.cpp microbench/microbench.h microbench/systemtime.h microbench/systemtime.cpp function.h makefile
 	$(CXX) $(CPPFLAGS) $(INCLUDES) $(CXXFLAGS) -DNDEBUG bench.cpp microbench/systemtime.cpp -o bench $(PLATLNOPTS) $(LDFLAGS)
+
+clean:
+	rm bench
