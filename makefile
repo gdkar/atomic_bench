@@ -3,18 +3,27 @@ ifeq ($(OS),Windows_NT)
 	PLATLNOPTS =
 else
 	EXT =
-	PLATLNOPTS = 
+	PLATLNOPTS = -lrt -lm -ldl
 endif
-LDFLAGS+= -lrt -pthread -lm -lstdc++ -ldl
-CPPFLAGS+= -g -ggdb -O3 -Ofast -march=native -pthread
-#INCLUDES+=  -I/home/gdkar/.local/include/asm  -I/home/gdkar/.local/include/c++ -I/home/gdkar/.local/include/c++/x86_64-redhat-linux  -I/home/gdkar/.local/include
-CXXFLAGS+= -std=gnu++14
+
+ifneq (,$(findstring clang,$(CXX)))
+  INCLUDES=-I/usr/local/include/c++/v1/ -I/opt/rh/devtoolset-3/root/usr/include/c++/4.9.2/
+  LDFLAGS+= -L/usr/local/lib -lc++
+endif
+CC?=gcc
+CXX?=g++
+
+OPTFLAGS+= -g -ggdb -O3 -Ofast -march=native
+CXXFLAGS+= -std=gnu++14 -pthread
+CFLAGS+=   -std=gnu11 -pthread
+SRCS := bench.cpp microbench/systemtime.cpp
+
 default: bench$(EXT)
 run: bench$(EXT)
 	./bench$(EXT)
-
-bench: bench.cpp microbench/microbench.h microbench/systemtime.h microbench/systemtime.cpp function.h makefile
-	$(CXX) $(CPPFLAGS) $(INCLUDES) $(CXXFLAGS) -DNDEBUG bench.cpp microbench/systemtime.cpp -o bench $(PLATLNOPTS) $(LDFLAGS)
-
 clean:
-	rm bench
+	rm ./bench$(EXT)
+bench: bench.cpp microbench/microbench.h microbench/systemtime.h microbench/systemtime.cpp atomic_bitops.h makefile
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OPTFLAGS) $(CPPFLAGS) -DNDEBUG -O3 $(SRCS) -o bench $(PLATLNOPTS) $(LDFLAGS)
+
+
