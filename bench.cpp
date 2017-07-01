@@ -1,6 +1,6 @@
 #include "microbench/microbench.h"
 #include "function.h"
-
+#include "atomic_bitops.h"
 #include <functional>
 #include <memory>
 #include <utility>
@@ -72,196 +72,238 @@ uintptr_t ghetto_thread_id()
 	static THREAD_LOCAL int x;
 	return reinterpret_cast<uintptr_t>(&x);
 }
-static int cfunc(int a)
-{
-    return a * 5;
-}
-static int mfunc(int a)
-{
-    static auto i = 0ll;
-    i += a;
-    return i;
-}
-struct sfunc {
-    int i = 5;
-    int j = 7;
-    sfunc(int _i = 5, int _j = 7)
-        :i(_i),j(_j)
-    {}
-    sfunc(const sfunc&)=default;
-    sfunc &operator=(const sfunc&) = default;
-    virtual int operator() (int a)
-    {
-        i += j * a;
-        return i;
-    }
 
-};
-static int (*fptr)(int a);
+inline uint32_t ghetto_cpu_id()
+{
+    static THREAD_LOCAL uint32_t id = 1024;
+    static THREAD_LOCAL uint32_t n  = 0;
+    if(!n) {
+       n = 256;
+        __rdtscp(&id);
+    }else{
+        n --;
+    }
+    return (id & 255u);
+}
+
+
 int main(int argc, char** argv)
 {
-    fptr = cfunc;
-	std::atomic<int> x32(0);
+    std::atomic<int> x32(0);
+    std::atomic<int> x32_0(0);
+    std::atomic<int> x32_1(0);
+    std::atomic<int> x32_2(0);
+    std::atomic<int> x32_3(0);
+    std::atomic<int> x32_4(0);
+    std::atomic<int> x32_5(0);
+    std::atomic<int> x32_6(0);
+    std::atomic<int> x32_7(0);
 	int y32 = rand();
+	int y32_0 = rand();
+	int y32_1 = rand();
+	int y32_2 = rand();
+	int y32_3 = rand();
+	int y32_4 = rand();
+	int y32_5 = rand();
+	int y32_6 = rand();
+	int y32_7 = rand();
 	int z32 = rand();
-	if (sizeof(x32) != 4) exit(1);
-	
-	std::atomic<long long> x64(0);
+    static_assert(sizeof(x32) == 4,"sizeof(int) should be 4, goshdarnit.");
+    std::atomic<long long> x64(0);
+    std::atomic<long long> x64_0(0);
+    std::atomic<long long> x64_1(0);
+    std::atomic<long long> x64_2(0);
+    std::atomic<long long> x64_3(0);
+    std::atomic<long long> x64_4(0);
+    std::atomic<long long> x64_5(0);
+    std::atomic<long long> x64_6(0);
+    std::atomic<long long> x64_7(0);
 	long long y64 = rand();
+	long long y64_0 = rand();
+	long long y64_1 = rand();
+	long long y64_2 = rand();
+	long long y64_3 = rand();
+	long long y64_4 = rand();
+	long long y64_5 = rand();
+	long long y64_6 = rand();
+	long long y64_7 = rand();
 	long long z64 = rand();
-	if (sizeof(x64) != 8) exit(2);
+    static_assert(sizeof(x64) == 8,"sizeof(long long) should be 8, goshdarnit.");
 	
-    std::atomic<long double> x128(0);
-    long double  y128 = rand();
-    long double z128 = rand();
-    volatile int       r32 = 0;
-    volatile long long r64 = 0;
-    volatile long double r128 = 0;
-    auto fn = std::function<int(int)>{};
-    auto i  = 5;
-    auto j  = 7;
-    auto lambda = [=](int a)mutable{ i+=j* a;return i; };r32=lambda(r32);
-	printf(" std::function<int(int)> construction takes %F clocks on average\n",
+    std::atomic<__int128> x128(0);
+    __int128 y128 = rand();
+    __int128 z128 = rand();
+    volatile int32_t r32;
+    volatile int64_t r64;
+    volatile __int128 r128;
+	printf("32-bit CAS takes %.8fclk on average\n",
 		moodycamel::microbench(
-			[&]() { fn = [=](int a)mutable{ i+=j * a;return i; };r32=fn(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { 
+                x32_0.compare_exchange_strong(y32_0, z32, std::memory_order_acq_rel, std::memory_order_acquire);
+                x32_1.compare_exchange_strong(y32_1, z32, std::memory_order_acq_rel, std::memory_order_acquire);
+                x32_2.compare_exchange_strong(y32_2, z32, std::memory_order_acq_rel, std::memory_order_acquire);
+                x32_3.compare_exchange_strong(y32_3, z32, std::memory_order_acq_rel, std::memory_order_acquire);
+                x32_4.compare_exchange_strong(y32_4, z32, std::memory_order_acq_rel, std::memory_order_acquire);
+                x32_5.compare_exchange_strong(y32_5, z32, std::memory_order_acq_rel, std::memory_order_acquire);
+                x32_6.compare_exchange_strong(y32_6, z32, std::memory_order_acq_rel, std::memory_order_acquire);
+                x32_7.compare_exchange_strong(y32_7, z32, std::memory_order_acq_rel, std::memory_order_acquire);
+            },
+			1000, /* iterations per test run */
+			50000 /* number of test runs */
+		)/8.    // ms -> ns
 	);
-
-    auto cfn = fn;
-	printf(" std::function<int(int)> copy takes %F clocks on average\n",
+	printf("64-bit CAS takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { cfn = fn;r32=cfn(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { 
+                x64_0.compare_exchange_strong(y64_0, z64, std::memory_order_acq_rel, std::memory_order_acquire);
+                x64_1.compare_exchange_strong(y64_1, z64, std::memory_order_acq_rel, std::memory_order_acquire);
+                x64_2.compare_exchange_strong(y64_2, z64, std::memory_order_acq_rel, std::memory_order_acquire);
+                x64_3.compare_exchange_strong(y64_3, z64, std::memory_order_acq_rel, std::memory_order_acquire);
+                x64_4.compare_exchange_strong(y64_4, z64, std::memory_order_acq_rel, std::memory_order_acquire);
+                x64_5.compare_exchange_strong(y64_5, z64, std::memory_order_acq_rel, std::memory_order_acquire);
+                x64_6.compare_exchange_strong(y64_6, z64, std::memory_order_acq_rel, std::memory_order_acquire);
+                x64_7.compare_exchange_strong(y64_7, z64, std::memory_order_acq_rel, std::memory_order_acquire);
+                },
+			1000,
+			50000
+		)/8.
 	);
-    auto ffn = func::function<int(int)>{};
-	printf(" ffn::function<int(int)> construction takes %F clocks on average\n",
+    printf("128-bit CAS takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { ffn = [=](int a)mutable{ i+=j * a;return i; };r32=ffn(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { x128.compare_exchange_strong(y128, z128, std::memory_order_acq_rel, std::memory_order_acquire); },
+			100,
+			100000
+		)
 	);
-
-    auto cffn = ffn;
-	printf(" func::function<int(int)> copy takes %F clocks on average\n",
+	printf("32-bit weak CAS takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { cffn = ffn;r32=cffn(r32);},
+			[&]() { x32.compare_exchange_weak(y32, z32, std::memory_order_acq_rel, std::memory_order_acquire); },
 			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			500000 /* number of test runs */
+		)
 	);
-	printf(" functor construction takes %F clocks on average\n",
+	
+	printf("64-bit weak CAS takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { auto sfn = sfunc{r32};r32=sfn(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { x64.compare_exchange_weak(y64, z64, std::memory_order_acq_rel, std::memory_order_acquire); },
+			100,
+			500000
+		)
 	);
-    auto sfn = sfunc{};
-	printf(" functor copy takes %F clocks on average\n",
+    printf("128-bit weak CAS takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { auto _sfn = sfn;r32 =_sfn(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { x128.compare_exchange_weak(y128, z128, std::memory_order_acq_rel, std::memory_order_acquire); },
+			100,
+			500000
+		)
 	);
-	printf(" lambda construction takes %F clocks on average\n",
+	printf("32-bit FA& takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { auto _lambda = [=](int a)mutable{ i+=j*a;return i; };r32=_lambda(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { r32 = x32.fetch_and(y32, std::memory_order_relaxed); },
+			100,
+			500000
+		)
 	);
-
-	printf(" lambda copy takes %F clocks on average\n",
+	printf("64-bit FA& takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { auto _lambda = lambda;r32=_lambda(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { r64 = x64.fetch_and(y64, std::memory_order_relaxed); },
+			100,
+			500000
+		)
 	);
-	printf(" std::function<int(int)> invocation takes %F clocks on average\n",
+	printf("32-bit lock & takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r32 = fn(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { x32.fetch_and(y32, std::memory_order_relaxed); },
+			100,
+			500000
+		)
 	);
-	printf(" func::function<int(int)> invocation takes %F clocks on average\n",
+    printf("64-bit bts takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r32 = ffn(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { atomic_test_and_set_bit(&x64, y64&63); },
+			100,
+			500000
+		)
 	);
-	printf(" functor invocation takes %F clocks on average\n",
+    printf("64-bit btr takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r32 = sfn(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { atomic_test_and_clear_bit(&x64, y64&63); },
+			100,
+			500000
+		)
 	);
-	printf(" lambda invocation takes %F clocks on average\n",
+    printf("64-bit __builtin_ffs takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r32 = lambda(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { r64 = __builtin_ffs( y64); },
+			100,
+			500000
+		)
 	);
-	printf(" func invocation takes %F clocks on average\n",
+    printf("64-bit bsrq takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r32 = cfunc(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { 
+                r32 = __builtin_ctzl(y64);
+                },
+			100,
+			500000
+		)
 	);
-	printf(" func ptr invocation takes %F clocks on average\n",
+	printf("64-bit lock & takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r32 = fptr(r32);},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { x64.fetch_and(y64, std::memory_order_relaxed); },
+			100,
+			500000
+		)
 	);
-	printf(" mutable func invocation takes %F clocks on average\n",
+	printf("32-bit FAA takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r32 = mfunc(r32);},
-			100, /* iterations per test run */
-			1000000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { r32 = x32.fetch_add(y32, std::memory_order_relaxed); },
+			100,
+			500000
+		)
 	);
-    fptr = mfunc;
-	printf(" mutable func ptr invocation takes %F clocks on average\n",
+	
+	printf("64-bit FAA takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r32 = fptr(r32);},
-			100, /* iterations per test run */
-			1000000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { r64 = x64.fetch_add(y64, std::memory_order_relaxed); },
+			100,
+			500000
+		)
 	);
-	printf(" gettime_ns() takes %F clocks on average\n",
+	printf("32-bit xchg takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r64 = gettime_ns();},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { r32 = x32.exchange(y32, std::memory_order_relaxed); },
+			100,
+			50000
+		)
 	);
-	printf(" gettime_tsc() takes %F clocks on average\n",
+	printf("64-bit xchg takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r64 = gettime_tsc();},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { r64 = x64.exchange(y64, std::memory_order_relaxed); },
+			100,
+			500000
+		)
 	);
-	printf(" gettime_chrono() takes %F clocks on average\n",
+	printf("128-bit xchg takes %.8f clocks on average\n",
 		moodycamel::microbench(
-			[&]() { r64 = gettime_chrono();},
-			100, /* iterations per test run */
-			100000 /* number of test runs */
-		)   // ms -> ns
+			[&]() { r128 = x128.exchange(y128, std::memory_order_relaxed); },
+			100,
+			100000
+		)
 	);
-    printf("sizeof(lambda) == %zu, sizeof(fn) == %zu, sizeof(fptr) == %zu, sizeof(func) == %zu, sizeof(mfunc) == %zu, sizeof(cfn) == %zu\n",sizeof(lambda), sizeof(fn),sizeof(fptr),sizeof(&cfunc),sizeof(&mfunc), sizeof(cfn));
-	return 0;
+	printf("std::this_thread::get_id() takes %.8f clocks on average\n",
+		moodycamel::microbench(
+			[&]() { std::this_thread::get_id(); },
+			100,
+			100000
+		)
+	);
+    uint32_t ghettoCPU = 0;
+    printf("ghetto_cpu_id() takes %.8f clocks on average\n",
+		moodycamel::microbench(
+			[&]() { ghettoCPU += ghetto_cpu_id(); },
+			100,
+			100000
+		)
+	);
 }

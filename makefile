@@ -1,3 +1,17 @@
+CC  :=/opt/cross/x86_64-linux-musl/bin/x86_64-linux-musl-gcc
+CXX :=/opt/cross/x86_64-linux-musl/bin/x86_64-linux-musl-g++
+
+CPPFLAGS += -Wall -Wextra -g -ggdb -O3 -pthread
+OPTFLAGS += -fomit-frame-pointer -ffast-math -I. -fPIC -DPIC -fno-math-errno \
+						-freciprocal-math -fassociative-math  -ftree-vectorize \
+						-pthread -ftls-model=initial-exec -mfpmath=sse 
+
+CFLAGS += -std=gnu11 -static $(OPTFLAGS) $(CPPFLAGS)
+CXXFLAGS += -std=gnu++14 -static $(OPTFLAGS) $(CPPFLAGS) -Wno-c++11-narrowing 
+LDFLAGS:= -lm -ldl -static 
+
+
+
 ifeq ($(OS),Windows_NT)
 	EXT = .exe
 	PLATLNOPTS =
