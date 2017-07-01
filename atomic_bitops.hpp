@@ -7,7 +7,7 @@ _Pragma("once")
 #include <x86intrin.h>
 
 template<typename T>
-inline bool atomic_test_and_set_bit(T *addr, int64_t bit)
+bool atomic_test_and_set_bit(T *addr, int64_t bit)
 {
     int old;
     asm volatile("lock; bts %2, %1;\n\t"
@@ -18,7 +18,7 @@ inline bool atomic_test_and_set_bit(T *addr, int64_t bit)
     return old;
 }
 template<typename T>
-inline bool atomic_test_and_clear_bit(T *addr, int64_t bit)
+bool atomic_test_and_clear_bit(T *addr, int64_t bit)
 {
     int old;
     asm volatile("lock; btr %2, %1;\n\t"
@@ -29,7 +29,7 @@ inline bool atomic_test_and_clear_bit(T *addr, int64_t bit)
     return old;
 }
 template<typename T>
-inline bool test_and_set_bit(T *addr, int64_t bit)
+bool test_and_set_bit(T *addr, int64_t bit)
 {
     int old;
     asm volatile("bts %2, %1;\n\t"
@@ -40,7 +40,7 @@ inline bool test_and_set_bit(T *addr, int64_t bit)
     return old;
 }
 template<typename T>
-inline bool test_and_clear_bit(T *addr, int64_t bit)
+bool test_and_clear_bit(T *addr, int64_t bit)
 {
     int old;
     asm volatile("btr %2, %1;\n\t"
